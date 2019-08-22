@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: GuardDuty Findings Centralizer
+# Name : guarddutycentralizer-spoke-account
+
+Parameters:
+
+  TagBlock:
+    Description: Applicative block tag
+    Type: String
+    Default: security
+
+  TagApp:
+    Description: Application tag
+    Type: String
+    Default: guarddutycentralizer
+
+  TagOrg:
+    Description: Organization tag
+    Type: String
+    Default: cloudteam
+
+  GuardDutyCentralRegion:
+    Description: Region of the GuardDuty event management
+    Type: String
+    Default: eu-west-1
+
+  GuardDutyCentralKinesisName:
+    Description: GuardDuty Kinesis Firehose
+    Type: String
+
+Resources:
+
+  GuardDutyFindingsCentralizerRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Send GuardDuty Findings to SNS"
+      EventPattern:
+        source:
+          - "aws.guardduty"
+        detail-type:
+          - "GuardDuty Finding"
+      Name: !Sub '${TagApp}-findings'
+      State: "ENABLED"
+      Targets:
+      - Arn: !GetAtt GuardDutyFindingsCentralizerLambda.Arn
+        Id: !Sub '${TagApp}-findings-collector'
+
+  GuardDutyFindingsCentralizerLambdaLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${GuardDutyFindingsCentralizerLambda}'
+      RetentionInDays: 30
+
+  PermissionTriggerGuardDutyFindingsCentralizerLambda:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref GuardDutyFindingsCentralizerLambda
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt GuardDutyFindingsCentralizerRule.Arn
+
+  GuardDutyFindingsCentralizerLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: !Sub '${TagApp}-findings-collector'
+      Description: "Route GuardDuty findings to Kinesis"
+      Handler: "index.lambda_handler"
+      Code:
+        ZipFile: |
+                  import os
+                  import json
+                  import boto3
+
+                  def lambda_handler(event, context):
+                      if 'KINESIS_STREAM_NAME' in os.environ:
+                          KINESIS_STREAM_NAME = os.environ['KINESIS_STREAM_NAME']
+                          print("KINESIS_STREAM_NAME : %s" % (KINESIS_STREAM_NAME))
+                      else:
+                          raise Exception('KINESIS_STREAM_NAME not found !')
+
+                      if 'KINESIS_REGION' in os.environ:
+                          KINESIS_REGION = os.environ['KINESIS_REGION']
+                          print("KINESIS_REGION : %s" % (KINESIS_REGION))
+                      else:
+                          raise Exception('KINESIS_REGION not found !')
+
+                      firehose_client = boto3.client('firehose', region_name=KINESIS_REGION)
+                      put_response = firehose_client.put_record(DeliveryStreamName=KINESIS_STREAM_NAME,
+                                                                Record={'Data': json.dumps(event)})
+      Environment:
+        Variables:
+          KINESIS_STREAM_NAME: !Ref GuardDutyCentralKinesisName
+          KINESIS_REGION: !Ref GuardDutyCentralRegion
+      MemorySize: 128
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${TagApp}-centralizer-lambda'
+      Runtime: "python3.7"
+      Timeout: 60
+      Tags:
+      - Key: Block
+        Value: !Ref TagBlock
+      - Key: Org
+        Value: !Ref TagOrg
+      - Key: App
+        Value: !Ref TagApp

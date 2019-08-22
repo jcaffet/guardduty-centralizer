@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: GuardDuty Findings Centralizer
+# Name : guarddutycentralizer-central
+
+Parameters:
+
+  TagBlock:
+    Description: Applicative block tag
+    Type: String
+    Default: security
+
+  TagApp:
+    Description: Application tag
+    Type: String
+    Default: guarddutycentralizer
+
+  TagOrg:
+    Description: Organization tag
+    Type: String
+    Default: cloudteam
+
+  GuardDutyCentralKinesis:
+    Description: GuardDuty Kinesis Firehose
+    Type: String
+
+
+Resources:
+
+  GuardDutyFindingsCentralizerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TagApp}-centralizer-lambda'
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: write-cloudwatch-logs
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:PutLogEvents
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            Resource:
+            - "arn:aws:logs:*:*:*"
+      - PolicyName: put-records-kinesis
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - firehose:PutRecord
+            Resource:
+            - !Sub 'arn:aws:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${GuardDutyCentralKinesis}'
