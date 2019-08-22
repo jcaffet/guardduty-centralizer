@@ -2,14 +2,14 @@
 
 ## Introduction
 
-[Amazon GuardDuty](https://aws.amazon.com/guardduty) is a great service which provides threat detection looking for suspicious activity on network flows (VPC and DNS) and CloudTrail messages. Once activated, the service gathers all findings of on account in the same region.
+[Amazon GuardDuty](https://aws.amazon.com/guardduty) is a great service which looks for threats and suspicious activity on network flows (VPC and DNS) and CloudTrail messages. Once activated, the service gathers all findings of one account in the same region.
 For large organizations, it is possible to define a central "GuardDuty Administrator" account to centralize findings.
-Unfortunately, findings are still retrieved on a per-region basis...
+Unfortunately, findings are still simply retrieved on a per-region basis...
 That is where GuardDuty Centralizer comes from ...
 
 ## Description
 
-GuardDuty Centralizer works as an extension of [Visualizing Amazon GuardDuty findings](https://aws.amazon.com/fr/blogs/security/visualizing-amazon-guardduty-findings/) and forward all GuardDuty findings of all the used AWS regions into a the central visualization system.
+GuardDuty Centralizer works as an extension of [Visualizing Amazon GuardDuty findings](https://aws.amazon.com/fr/blogs/security/visualizing-amazon-guardduty-findings/) and forwards all GuardDuty findings of the used AWS regions into a the central visualization system (ElasticSearch + Kibana)
 
 ## Design
 
@@ -26,7 +26,7 @@ GuardDuty Centralizer works as an extension of [Visualizing Amazon GuardDuty fin
 - CloudWatch Rule to trigger the Lambda executions
 - one Lambda to put date to Firehose
 - CloudWatch Logs to log the global activity
-- one shared role to allow the Lambda to put date into Firehose.
+- one shared role to allow the Lambda to put data into Firehose.
 
 ### Explanation
 
@@ -41,12 +41,12 @@ GuardDuty Centralizer needs :
 ## Installation
 
 1. deploy the [cf-guarddutycentralizer-central.yml](cf-guarddutycentralizer-central.yml) CloudFormation stack in the central region of the security account
-2. deploy the [cf-guarddutycentralizer-spoke.yml](cf-guarddutycentralizer-spoke.yml) in all the concerned regions, except the central one*, in the security account.
+2. deploy the [cf-guarddutycentralizer-spoke.yml](cf-guarddutycentralizer-spoke.yml) in each useful regions, *except the central one*, in the security account. Do not hesitate to use a CloudFormation StackSet.
 
 ## How to use it
 
-Once installed, nothing has to be done. All findings come be found through Kibana or the archive S3 bucket.
-New regions are not added automatically. Maybe in v2 ...
+Once installed, nothing has to be done. All findings are pushed in Firehose and can be found through Kibana or the archive S3 bucket.
 
 ## Notes
-- it is also possible to configure between the CloudWatch Rule and the lambda an intermediate SNS topic. Interesting if you need specific action or invocation per region (see alternative directory)
+- it is also possible to configure between the CloudWatch Rule and the lambda an intermediate SNS topic. Interesting if you need specific action or invocation per region (see [alternative](alternative/) directory)
+- new regions are not added automatically. Maybe in v2 ...
